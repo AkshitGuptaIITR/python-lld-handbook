@@ -95,3 +95,63 @@ classDiagram
         +__getitem__(index: int) str
     }
 ```
+
+## Lesson 1.4: Modern Data Modeling (`@dataclass`, `field()`, `Enum`, `StrEnum`)
+
+### Key Takeaways
+
+- **`@dataclass` Code Generation:** Inspects `__annotations__` at class creation time and compiles `__init__`, `__repr__`, `__eq__`, and `__hash__` dynamically. Does _not_ perform runtime type validation unless explicitly coded in `__post_init__`.
+- **Slotted Immutable Value Objects (`frozen=True, slots=True`):** Eliminates per-instance `__dict__` (~40-50% memory savings) and blocks attribute mutation. Normalization inside `__post_init__` must use `object.__setattr__(self, "attr", val)`.
+- **Secret & Metadata Control (`InitVar`, `field()`):** Use `InitVar[T]` for init-only parameters passed to `__post_init__`. Use `field(repr=False, compare=False)` for secrets/DSNs or metadata to prevent log leaks and equality skew.
+- **Custom Ordering (`order=True`):** Use a leading `_sort_key: tuple[...] = field(init=False, repr=False, compare=True)` while setting `compare=False` on other fields to achieve custom multi-field sorting without manual `__lt__` boilerplate.
+- **`StrEnum` vs `Enum` (Python 3.11+):** `StrEnum` inherits from `str`, allowing seamless string comparison and JSON serialization (`Environment.PRODUCTION == "production"`), whereas `Enum` enforces strict non-string singletons.
+
+### Class Diagram
+
+```mermaid
+classDiagram
+    class Environment {
+        <<StrEnum>>
+        DEVELOPMENT : "development"
+        STAGING : "staging"
+        PRODUCTION : "production"
+    }
+
+    class LogLevel {
+        <<Enum>>
+        DEBUG : 10
+        INFO : 20
+        WARNING : 30
+        ERROR : 40
+        CRITICAL : 50
+        +is_at_least(minimum: LogLevel) bool
+    }
+
+    class DatabaseConfig {
+        <<dataclass(frozen=True, slots=True)>>
+        +host: str
+        +port: int
+        +username: str
+        +database: str
+        +options: tuple[str, ...]
+        +dsn: str
+        +__post_init__(raw_password: str) None
+    }
+
+    class DeploymentSpec {
+        <<dataclass(slots=True, order=True)>>
+        -_sort_key: tuple[int, str]
+        +service_name: str
+        +environment: Environment
+        +db_config: DatabaseConfig
+        +replicas: int
+        +log_level: LogLevel
+        +tags: list[str]
+        +deployment_id: str
+        +__post_init__() None
+    }
+
+    DeploymentSpec --> Environment
+    DeploymentSpec --> LogLevel
+    DeploymentSpec *-- DatabaseConfig
+```
