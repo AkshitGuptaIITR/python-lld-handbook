@@ -19,6 +19,7 @@ pythonpath = [
     ".",
     "001_oop_fundamentals",
     "002_interfaces_and_inheritance",
+    "003_design_patterns",
 ]
 
 
